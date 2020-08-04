@@ -60,12 +60,18 @@ public class SnowflakeIDGenImpl implements IDGen {
     @Override
     public synchronized Result get(String key) {
         long timestamp = timeGen();
+        // 如果发生时间回拨
         if (timestamp < lastTimestamp) {
+            // 回拨时间差
             long offset = lastTimestamp - timestamp;
+            //  如果回拨 小于5ms
             if (offset <= 5) {
                 try {
+                    //  等待  2*offset的时间
                     wait(offset << 1);
+                    // 再次获取
                     timestamp = timeGen();
+                    // 没救了，直接抛异常吧
                     if (timestamp < lastTimestamp) {
                         return new Result(-1, Status.EXCEPTION);
                     }
@@ -77,10 +83,14 @@ public class SnowflakeIDGenImpl implements IDGen {
                 return new Result(-3, Status.EXCEPTION);
             }
         }
+        // snowflake 实现
         if (lastTimestamp == timestamp) {
             sequence = (sequence + 1) & sequenceMask;
             if (sequence == 0) {
                 //seq 为0的时候表示是下一毫秒时间开始对seq做随机
+
+                // 这个地方有讲究， 如果业务不是很频繁，比如一秒一次，每次都有可能是0结尾的， 而如果业务还会用这个来Id来分表，那分出来的表总体可能不平均
+                //  所以这里添加了随机开始
                 sequence = RANDOM.nextInt(100);
                 timestamp = tilNextMillis(lastTimestamp);
             }

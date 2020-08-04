@@ -54,7 +54,7 @@ public class SnowflakeZookeeperHolder {
             if (stat == null) {
                 //不存在根节点,机器第一次启动,创建/snowflake/ip:port-000000000,并上传数据
                 zk_AddressNode = createNode(curator);
-                //worker id 默认是0
+                //worker id 默认是0， 写入到本地文件
                 updateLocalWorkerID(workerID);
                 //定时上报本机时间给forever节点
                 ScheduledUploadData(curator, zk_AddressNode);
@@ -74,6 +74,7 @@ public class SnowflakeZookeeperHolder {
                     //有自己的节点,zk_AddressNode=ip:port
                     zk_AddressNode = PATH_FOREVER + "/" + realNode.get(listenAddress);
                     workerID = workerid;//启动worder时使用会使用
+                    // 最后一次上报时间和当前时间对比
                     if (!checkInitTimeStamp(curator, zk_AddressNode)) {
                         throw new CheckLastTimeException("init timestamp check error,forever node timestamp gt this node time");
                     }
@@ -95,6 +96,7 @@ public class SnowflakeZookeeperHolder {
         } catch (Exception e) {
             LOGGER.error("Start node ERROR {}", e);
             try {
+                // ZK 连接失败，使用本地的workId
                 Properties properties = new Properties();
                 properties.load(new FileInputStream(new File(PROP_PATH.replace("{port}", port + ""))));
                 workerID = Integer.valueOf(properties.getProperty("workerID"));
@@ -111,6 +113,13 @@ public class SnowflakeZookeeperHolder {
         ScheduledUploadData(curator, zk_AddressNode);// /snowflake_forever/ip:port-000000001
     }
 
+    /**
+     *
+     * 每隔3S 上报一次系统时间
+     *
+     * @param curator
+     * @param zk_AddressNode
+     */
     private void ScheduledUploadData(final CuratorFramework curator, final String zk_AddressNode) {
         Executors.newSingleThreadScheduledExecutor(new ThreadFactory() {
             @Override
@@ -128,6 +137,15 @@ public class SnowflakeZookeeperHolder {
 
     }
 
+    /**
+     *
+     *  最后一次上报系统时间和当前系统时间对比
+     *
+     * @param curator
+     * @param zk_AddressNode
+     * @return
+     * @throws Exception
+     */
     private boolean checkInitTimeStamp(CuratorFramework curator, String zk_AddressNode) throws Exception {
         byte[] bytes = curator.getData().forPath(zk_AddressNode);
         Endpoint endPoint = deBuildData(new String(bytes));

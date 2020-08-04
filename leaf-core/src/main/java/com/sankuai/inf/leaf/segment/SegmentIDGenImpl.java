@@ -205,6 +205,7 @@ public class SegmentIDGenImpl implements IDGen {
             try {
                 final Segment segment = buffer.getCurrent();
                 if (!buffer.isNextReady() && (segment.getIdle() < 0.9 * segment.getStep()) && buffer.getThreadRunning().compareAndSet(false, true)) {
+                    // 异步获取下一个号段
                     service.execute(new Runnable() {
                         @Override
                         public void run() {
